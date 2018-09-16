@@ -60,20 +60,16 @@
  
 // DEFINE PIN LOCATIONS
 #define LED_RED       10 //Nää on nyt värin määritykseen käytettävät
-#define LED_GREEN     11
+#define LED_GREEN     11 // punanen default
 #define LED_BLUE      12
 #define LED_YELLOW    13
-#define BUTTON_RED    A5
+#define BUTTON_RED    A5 //valintanapit
 #define BUTTON_GREEN  A4
 #define BUTTON_BLUE   A3
 #define BUTTON_YELLOW A2
 
-#define BUTTON_CHEAT 9
-
-#define BUTTON_LIGHT0 2
-#define BUTTON_LIGHT1 3
-#define BUTTON_LIGHT2 4
-#define BUTTON_LIGHT3 5
+#define BUTTON_CHEAT 9 //loser nappi
+#define BUTTON_RESET 10 //reset
 
 #define BUZZER        6
 #define SERVOPIN      8
@@ -88,17 +84,14 @@ int in1 = 3; //Moottori ohjauspinni (PWM)
 int in2 = 4; //Moottori ohjauspinni
 
 //PAINIKKEIDEN LED
-int enB = 1; //LED valoteho, analog säätö 0-255
+int enB = 13; //LED valoteho, analog säätö 0-255
 int in3 = 5; //LED ohjauspinni ON/OFF
-int State = 0; // Muuttuja joka kertoo onko LED ON vai OFF
 int LED_laskuri;
 int LED_laskuri_kerroin = 4; //Määrä kuinka monta kertaa LED vilkkuvat ajan loputtua
  
 //PARAMETRIT
-#define ENTRY_TIME_LIMIT 20000 //Aika jonka peli odottaa vastausta ennen ajan loppumista
-#define REPEAT_SOUND_FREQ 1000
-#define LIGHT_OFF_TIME 200
-#define LIGHT_ON_TIME 200
+#define ENTRY_TIME_LIMIT 30000 //Aika jonka peli odottaa vastausta ennen ajan loppumista
+#define RAPID_FLASH_TIME 15000
 #define DIST_TRESHOLD 1200
 #define BUTTON_COLOR_FREQ 150
 
@@ -110,23 +103,22 @@ void setup() // Run once when power is connected
   pinMode(in1, OUTPUT);
   pinMode(in2, OUTPUT);
   pinMode(in3, OUTPUT);
+  analogWrite(enB, 255);
     
+  pinMode(BUZZER, OUTPUT);
+  
   pinMode(BUTTON_RED, INPUT_PULLUP);
   pinMode(BUTTON_GREEN, INPUT_PULLUP);
   pinMode(BUTTON_BLUE, INPUT_PULLUP);
   pinMode(BUTTON_YELLOW, INPUT_PULLUP);
   
   pinMode(BUTTON_CHEAT, INPUT_PULLUP);
+  pinMode(BUTTON_RESET, INPUT_PULLUP);
  
   pinMode(LED_RED, INPUT_PULLUP);
   pinMode(LED_GREEN, INPUT_PULLUP);
   pinMode(LED_BLUE, INPUT_PULLUP);
   pinMode(LED_YELLOW, INPUT_PULLUP);
-  
-  pinMode(BUTTON_LIGHT0, OUTPUT);
-  pinMode(BUTTON_LIGHT1, OUTPUT);
-  pinMode(BUTTON_LIGHT2, OUTPUT);
-  pinMode(BUTTON_LIGHT3, OUTPUT);
 
   pinMode(TRIGPIN, OUTPUT); // Sets the trigPin as an Output
   pinMode(ECHOPIN, INPUT); // Sets the echoPin as an Input
@@ -141,12 +133,11 @@ void loop()
   
   int cheated = attractMode(); // Blink lights while waiting for user to press a button
   
-  if(!cheated){
-    if (play_memory()) 
-      play_winner(); // Player won, play winner tones
-    else 
-      play_loser(); // Player lost, play loser tones
-  }
+  if (cheated || play_memory()) 
+    play_winner(); // Player won, play winner tones
+  else 
+    play_loser(); // Player lost, play loser tones
+  
 }
  
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -155,16 +146,22 @@ void loop()
 // Returns 0 if player loses, or 1 if player wins
 boolean play_memory(void)
 {
-  randomSeed(millis()); // Seed the random generator with random amount of millis()
+  play(C5,  100);
+  delay(33);
+  play(C5,  100);
+  delay(33);
+  play(C5,  100);
+  delay(33);
+  play(C5,  100);
   
-  int correct_button = BUTTON_RED;
+  int correct_button = CHOICE_RED;
   if(!digitalRead(LED_GREEN))
-    correct_button = BUTTON_GREEN;
+    correct_button = CHOICE_GREEN;
   else if(!digitalRead(LED_BLUE))
-    correct_button = BUTTON_BLUE;
+    correct_button = CHOICE_BLUE;
   else if(!digitalRead(LED_YELLOW))
-    correct_button = BUTTON_YELLOW;
-    
+    correct_button = CHOICE_YELLOW;
+  
   return wait_for_button() == correct_button;
 }
  
@@ -175,10 +172,11 @@ boolean play_memory(void)
 byte wait_for_button(void)
 {
   long startTime = millis(); // Remember the time we started the this loop
-  long soundTime = startTime;
-  int repeats = 6; //                                                                         <= ARVO KUINKA MONTA KERTAA VÄRIKOODI TOISTETAAN
-  while ( (millis() - startTime) < ENTRY_TIME_LIMIT) // Loop until too much time has passed
+  long t = 0;
+
+  do
   {
+    t = millis() - startTime;
     byte button = checkButton();
  
     if (button != CHOICE_NONE)
@@ -191,25 +189,18 @@ byte wait_for_button(void)
     delay(1);
 
     //Vilkutetaan nappien LED, variable State ja aikamääreen avulla
-    int button_light = ((millis()-startTime) / BUTTON_COLOR_FREQ) % 4;
-    if(State == 0)
+    int button_light = (t / BUTTON_COLOR_FREQ) % 6;
+    if(button_light == 0 || button_light == 2 || (button_light == 4 && millis() - startTime > RAPID_FLASH_TIME))
     {
-      analogWrite(enB, 255); //Nappien LED jännitteen säätö 0-255
       digitalWrite(in3, HIGH); //Nappien LED päälle
-      State = 1;
     }
-    else if(State == 1)
+    else
     {
       digitalWrite(in3, LOW); //Nappien LED pois päältä
-      State = 0;
     }
-    // repeat total of 3 times
-    if(repeats && millis() - soundTime > REPEAT_SOUND_FREQ){
-      playMoves();
-      soundTime = millis();
-      repeats--;
-    }
-  }
+    if(t > ENTRY_TIME_LIMIT - 2000)
+      play(F5,  2);
+  } while(t < ENTRY_TIME_LIMIT); // Loop until too much time has passed
 
 
   return CHOICE_NONE;   // VASTAUSAIKA LOPPUI
@@ -233,7 +224,6 @@ byte checkButton(void)
 // Yellow, lower right: 784Hz - G5
 void toner(byte which, int dur)
 {
-  setLEDs(which); //Turn on a given LED
  
   //Play the sound associated with the given LED
   switch(which) 
@@ -252,7 +242,6 @@ void toner(byte which, int dur)
     break;
   }
  
-  setLEDs(CHOICE_OFF); // Turn off all LEDs
 }
  
  
@@ -275,6 +264,26 @@ void play_winner(void) //KUN KISAAJA NÄPPÄILEE OIKEIN, VOITTAA PELIN JA RAMPPI
  
 void open_ramp(void)
 {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  
+  analogWrite(enA, 255);
+  delay(2000);
+  analogWrite(enA, 0);
+
+  //WAIT FOR BUTTON
+  while(digitalRead(BUTTON_RESET)) delay(1);
+  
+  // now change motor directions
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW); 
+  
+  analogWrite(enA, 255);  
+  delay(2000);
+  analogWrite(enA, 0);
+  // now turn off motors
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
 }
  
 
@@ -283,52 +292,32 @@ void play_loser(void) // KUN KISAAJA NÄPPÄILEE VÄÄRIN JA HÄVIÄÄ PELIN
    for (LED_laskuri = 0; LED_laskuri < LED_laskuri_kerroin; LED_laskuri++) //Nappien LED vilkkuu häviön merkiksi
   {
     digitalWrite(in3, LOW);
-    delay(200);
+    play(E3,  200);
     digitalWrite(in3, HIGH);
+    play(C3,  200);
     delay(200);
     
   }
-  setLEDs(CHOICE_RED | CHOICE_GREEN);
-  play(B3,Q);
- 
-  setLEDs(CHOICE_BLUE | CHOICE_YELLOW);
-  play(B3,Q);
- 
-  setLEDs(CHOICE_RED | CHOICE_GREEN);
-  play(B3,Q);
- 
-  setLEDs(CHOICE_BLUE | CHOICE_YELLOW);
-  play(B3,Q);
-
-  digitalWrite(in1, HIGH);
-  digitalWrite(in2, LOW);
-  
-  analogWrite(enA, 255);
-  delay(2000);
-  // now change motor directions
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, HIGH);   
-  delay(2000);
-  // now turn off motors
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, LOW);
 }
  
 // Show an "attract mode" display while waiting for user to press button.
 int attractMode(void)
 {
+  digitalWrite(in3, HIGH); //Nappien LED päälle
+  
   // Play the ready sound
   play(C5,  100);
   play(E5,  100);
-  // Turn all LEDs off
-  setLEDs(CHOICE_NONE);
   
   // Wait until someone is close
   while(readDist() > DIST_TRESHOLD){
-    if(!digitalRead(BUTTON_CHEAT))
+    if(!digitalRead(BUTTON_CHEAT)){
+      digitalWrite(in3, LOW); //Nappien LED pois
       return 1;
-    delay(10);
+    }
+    delay(5);
   }
+  digitalWrite(in3, LOW); //Nappien LED pois
   return 0;
 }
  
@@ -350,4 +339,3 @@ void play(long note, int duration) {
   tone(BUZZER,note,duration);
   delay(1+duration);
 }
-
