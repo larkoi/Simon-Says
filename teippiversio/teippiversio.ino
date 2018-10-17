@@ -59,17 +59,17 @@
 #define CHOICE_YELLOW (1 << 3)
  
 // DEFINE PIN LOCATIONS
-#define LED_RED       10 //Nää on nyt värin määritykseen käytettävät
-#define LED_GREEN     11 // punanen default
-#define LED_BLUE      12
-#define LED_YELLOW    13
-#define BUTTON_RED    A5 //valintanapit
-#define BUTTON_GREEN  A4
-#define BUTTON_BLUE   A3
-#define BUTTON_YELLOW A2
+#define LED_RED       A0 //Nää on nyt värin määritykseen käytettävät
+#define LED_GREEN     A1 // punanen default
+#define LED_BLUE      A2
+#define LED_YELLOW    A3
+#define BUTTON_RED    9 //valintanapit
+#define BUTTON_GREEN  10
+#define BUTTON_BLUE   11
+#define BUTTON_YELLOW 12
 
-#define BUTTON_CHEAT 9 //loser nappi
-#define BUTTON_RESET 10 //reset
+#define BUTTON_CHEAT A4 //loser nappi
+#define BUTTON_RESET BUTTON_CHEAT //reset
 
 #define BUZZER        6
 #define SERVOPIN      8
@@ -94,6 +94,7 @@ int LED_laskuri_kerroin = 4; //Määrä kuinka monta kertaa LED vilkkuvat ajan l
 #define RAPID_FLASH_TIME 15000
 #define DIST_TRESHOLD 1200
 #define BUTTON_COLOR_FREQ 150
+#define RAMP_TIME 3000
 
  
 void setup() // Run once when power is connected
@@ -125,6 +126,18 @@ void setup() // Run once when power is connected
 
   //Serial.begin(9600);
 
+
+  // Reset ramp to low
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW); 
+  
+  analogWrite(enA, 255);  
+  delay(1000);
+  analogWrite(enA, 0);
+  // now turn off motors
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+
 }
  
  
@@ -154,13 +167,13 @@ boolean play_memory(void)
   delay(33);
   play(C5,  100);
   
-  int correct_button = CHOICE_RED;
+  int correct_button = CHOICE_YELLOW;
   if(!digitalRead(LED_GREEN))
     correct_button = CHOICE_GREEN;
   else if(!digitalRead(LED_BLUE))
     correct_button = CHOICE_BLUE;
-  else if(!digitalRead(LED_YELLOW))
-    correct_button = CHOICE_YELLOW;
+  else if(!digitalRead(LED_RED))
+    correct_button = CHOICE_RED;
   
   return wait_for_button() == correct_button;
 }
@@ -268,10 +281,10 @@ void open_ramp(void)
   digitalWrite(in2, HIGH);
   
   analogWrite(enA, 255);
-  delay(2000);
+  delay(RAMP_TIME);
   analogWrite(enA, 0);
 
-  //WAIT FOR BUTTON
+  //WAIT FOR RESET BUTTON
   while(digitalRead(BUTTON_RESET)) delay(1);
   
   // now change motor directions
@@ -279,7 +292,7 @@ void open_ramp(void)
   digitalWrite(in2, LOW); 
   
   analogWrite(enA, 255);  
-  delay(2000);
+  delay(RAMP_TIME);
   analogWrite(enA, 0);
   // now turn off motors
   digitalWrite(in1, LOW);
